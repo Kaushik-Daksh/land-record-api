@@ -113,18 +113,18 @@
     "expected_flags": ["MUTATION_PENDING"]
   },
   {
-    "id": "DOC-009",
-    "description": "Missing owner name field entirely",
-    "payload": {
-      "property_id": "PAR-MH-PUN-00012402",
-      "owner_name": "",
-      "survey_no": "124/2",
-      "area": 2.50,
-      "village": "Wagholi"
-    },
-    "expected_status_code": 200,
-    "expected_decision": "HUMAN_REVIEW",
-    "expected_flags": ["OWNER_NAME_MISSING"]
+  "id": "DOC-009",
+  "description": "Missing owner name field entirely",
+  "payload": {
+    "property_id": "PAR-MH-PUN-00012402",
+    "owner_name": "",
+    "survey_no": "124/2",
+    "area": 2.50,
+    "village": "Wagholi"
+  },
+  "expected_status_code": 200,
+  "expected_decision": "HUMAN_REVIEW",
+  "expected_flags": ["OWNER_NAME_FIELD_MISSING"]
   },
   {
     "id": "DOC-010",
@@ -139,5 +139,81 @@
     "expected_status_code": 200,
     "expected_decision": "HUMAN_REVIEW",
     "expected_flags": ["OWNER_NAME_MISMATCH", "SURVEY_NO_MISMATCH", "AREA_MISMATCH", "VILLAGE_MISMATCH"]
-  }
+  },
+  {
+  "id": "DOC-011",
+  "description": "Sale date is after registration date (impossible sequence)",
+  "payload": {
+    "property_id": "PAR-MH-PUN-00012402",
+    "owner_name": "Rajesh Kumar",
+    "survey_no": "124/2",
+    "area": 2.50,
+    "village": "Wagholi",
+    "sale_date": "2024-09-01",
+    "registration_date": "2024-08-15"
+  },
+  "expected_status_code": 200,
+  "expected_decision": "HUMAN_REVIEW",
+  "expected_flags": ["SALE_DATE_AFTER_REGISTRATION_DATE"]
+},
+{
+  "id": "DOC-012",
+  "description": "Owner shares exceed 100%",
+  "payload": {
+    "property_id": "PAR-MH-PUN-00012402",
+    "owner_name": "Rajesh Kumar",
+    "survey_no": "124/2",
+    "area": 2.50,
+    "village": "Wagholi",
+    "owner_shares": [60, 60]
+  },
+  "expected_status_code": 200,
+  "expected_decision": "HUMAN_REVIEW",
+  "expected_flags": ["OWNER_SHARE_EXCEEDS_100_PERCENT"]
+},
+{
+  "id": "DOC-013",
+  "description": "Dates are consistent and valid — no cross-field issues",
+  "payload": {
+    "property_id": "PAR-MH-PUN-00012402",
+    "owner_name": "Rajesh Kumar",
+    "survey_no": "124/2",
+    "area": 2.50,
+    "village": "Wagholi",
+    "sale_date": "2024-08-10",
+    "registration_date": "2024-08-15",
+    "owner_shares": [50, 50]
+  },
+  "expected_status_code": 200,
+  "expected_decision": "AUTO_APPROVE",
+  "expected_flags": []
+},
+{
+  "id": "DOC-014",
+  "description": "Area is negative — invalid on its own terms",
+  "payload": {
+    "property_id": "PAR-MH-PUN-00012402",
+    "owner_name": "Rajesh Kumar",
+    "survey_no": "124/2",
+    "area": -5.0,
+    "village": "Wagholi"
+  },
+  "expected_status_code": 200,
+  "expected_decision": "HUMAN_REVIEW",
+  "expected_flags": ["AREA_AREA_NOT_POSITIVE"]
+},
+{
+  "id": "DOC-015",
+  "description": "Survey number has no digits — clearly malformed OCR output",
+  "payload": {
+    "property_id": "PAR-MH-PUN-00012402",
+    "owner_name": "Rajesh Kumar",
+    "survey_no": "ABC",
+    "area": 2.50,
+    "village": "Wagholi"
+  },
+  "expected_status_code": 200,
+  "expected_decision": "HUMAN_REVIEW",
+  "expected_flags": ["SURVEY_NO_SURVEY_NO_FORMAT_INVALID"]
+}
 ]

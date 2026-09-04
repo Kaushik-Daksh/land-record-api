@@ -1,10 +1,12 @@
 import json
 import os
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
-from rules_engine import compare_field, run_business_rules, decide_outcome
+from rules_engine import compare_field, run_business_rules, run_cross_field_checks, decide_outcome
+from database import verification_logs_collection
 
 router = APIRouter(prefix="/api/verification", tags=["verification"])
 
@@ -54,12 +56,24 @@ class ExtractedFields(BaseModel):
     village: Optional[str] = None
     registration_no: Optional[str] = None
 
+    # New fields for cross-field validation
+    sale_date: Optional[str] = None
+    registration_date: Optional[str] = None
+    mutation_date: Optional[str] = None
+    owner_shares: Optional[List[float]] = None
+
 
 @router.post("/document")
 def verify_document(fields: ExtractedFields):
     lrms_record = find_lrms_property(fields.property_id)
 
     if lrms_record is None:
+        verification_logs_collection.insert_one({
+            "property_id": fields.property_id,
+            "input_fields": fields.dict(),
+            "result": "PROPERTY_NOT_FOUND",
+            "timestamp": datetime.utcnow()
+        })
         raise HTTPException(status_code=404, detail="Property not found in LRMS — cannot verify")
 
     lrms_owner_name = lrms_record["owners"][0]["name"] if lrms_record.get("owners") else None
@@ -71,7 +85,6 @@ def verify_document(fields: ExtractedFields):
         compare_field("village", fields.village, lrms_record.get("village")),
     ]
 
-    # Registration check — only run if the caller actually provided one
     if fields.registration_no:
         registration_record = find_registration(fields.registration_no)
         field_results.append(
@@ -88,9 +101,19 @@ def verify_document(fields: ExtractedFields):
     encumbrance_active = find_encumbrance(fields.property_id)
 
     flags = run_business_rules(field_results, encumbrance_active=encumbrance_active, mutation_status=mutation_status)
+
+    # Run cross-field checks and merge in any additional flags
+    cross_field_flags = run_cross_field_checks(
+        sale_date=fields.sale_date,
+        registration_date=fields.registration_date,
+        mutation_date=fields.mutation_date,
+        owner_shares=fields.owner_shares
+    )
+    flags.extend(cross_field_flags)
+
     outcome = decide_outcome(flags, field_results)
 
-    return {
+    result = {
         "property_id": fields.property_id,
         "fields": field_results,
         "mutation_status": mutation_status,
@@ -99,3 +122,13 @@ def verify_document(fields: ExtractedFields):
         "decision": outcome["decision"],
         "review_reason": outcome["reason"]
     }
+
+    log_entry = {
+        **result,
+        "input_fields": fields.dict(),
+        "timestamp": datetime.utcnow()
+    }
+    log_result = verification_logs_collection.insert_one(log_entry)
+    result["log_id"] = str(log_result.inserted_id)
+
+    return result
