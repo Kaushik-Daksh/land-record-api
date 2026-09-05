@@ -159,3 +159,43 @@ def decide_outcome(flags: list, field_results: list) -> dict:
         return {"decision": "AUTO_APPROVE", "reason": []}
 
     return {"decision": "HUMAN_REVIEW", "reason": flags}
+def run_additional_business_rules(
+    property_status: Optional[str] = None,
+    seller_name: Optional[str] = None,
+    current_owner_names: Optional[list] = None,
+    consideration_amount: Optional[float] = None,
+    sale_date: Optional[str] = None,
+    registration_date: Optional[str] = None,
+    extracted_area_unit: Optional[str] = None,
+    authoritative_area_unit: Optional[str] = None,
+    claimed_previous_owner: Optional[str] = None,
+    last_mutation_new_owner: Optional[str] = None
+) -> list:
+    flags = []
+
+    if property_status and property_status != "ACTIVE":
+        flags.append("PROPERTY_STATUS_NOT_ACTIVE")
+
+    if seller_name and current_owner_names is not None:
+        if seller_name.strip().lower() not in [n.strip().lower() for n in current_owner_names]:
+            flags.append("SELLER_NOT_CURRENT_OWNER")
+
+    if consideration_amount is not None and consideration_amount <= 0:
+        flags.append("INVALID_CONSIDERATION_AMOUNT")
+
+    today = datetime.utcnow()
+    for label, d in [("SALE", sale_date), ("REGISTRATION", registration_date)]:
+        if d:
+            parsed = parse_date(d)
+            if parsed and parsed > today:
+                flags.append(f"FUTURE_DATED_{label}")
+
+    if extracted_area_unit and authoritative_area_unit:
+        if extracted_area_unit.strip().lower() != authoritative_area_unit.strip().lower():
+            flags.append("AREA_UNIT_MISMATCH")
+
+    if claimed_previous_owner and last_mutation_new_owner:
+        if claimed_previous_owner.strip().lower() != last_mutation_new_owner.strip().lower():
+            flags.append("CHAIN_OF_TITLE_MISMATCH")
+
+    return flags

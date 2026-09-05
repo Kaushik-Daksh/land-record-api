@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 
-from rules_engine import compare_field, run_business_rules, run_cross_field_checks, decide_outcome
+from rules_engine import compare_field, run_business_rules, run_cross_field_checks, run_additional_business_rules, decide_outcome
 from database import verification_logs_collection
 
 router = APIRouter(prefix="/api/verification", tags=["verification"])
@@ -53,14 +53,16 @@ class ExtractedFields(BaseModel):
     owner_name: Optional[str] = None
     survey_no: Optional[str] = None
     area: Optional[float] = None
+    area_unit: Optional[str] = None
     village: Optional[str] = None
     registration_no: Optional[str] = None
-
-    # New fields for cross-field validation
     sale_date: Optional[str] = None
     registration_date: Optional[str] = None
     mutation_date: Optional[str] = None
     owner_shares: Optional[List[float]] = None
+    seller_name: Optional[str] = None
+    consideration_amount: Optional[float] = None
+    claimed_previous_owner: Optional[str] = None
 
 
 @router.post("/document")
@@ -109,6 +111,21 @@ def verify_document(fields: ExtractedFields):
         mutation_date=fields.mutation_date,
         owner_shares=fields.owner_shares
     )
+    current_owner_names = [o["name"] for o in lrms_record.get("owners", [])]
+
+    additional_flags = run_additional_business_rules(
+        property_status=lrms_record.get("status"),
+        seller_name=fields.seller_name,
+        current_owner_names=current_owner_names,
+        consideration_amount=fields.consideration_amount,
+        sale_date=fields.sale_date,
+        registration_date=fields.registration_date,
+        extracted_area_unit=fields.area_unit,
+        authoritative_area_unit=lrms_record.get("area_unit"),
+        claimed_previous_owner=fields.claimed_previous_owner,
+        last_mutation_new_owner=mutation_record.get("new_owner") if mutation_record else None
+    )
+    flags.extend(additional_flags)
     flags.extend(cross_field_flags)
 
     outcome = decide_outcome(flags, field_results)
