@@ -11,16 +11,14 @@ class OCRLanguage(str, Enum):
     bengali = "bengali"
 
 
-# EasyOCR restricts which languages can be combined in one Reader.
-# Devanagari-script languages (Hindi, Marathi, Nepali) form one compatible group.
-# Bengali is only compatible with English and Assamese.
+# EasyOCR in place of PaddleOCR
 LANGUAGE_GROUPS = {
     OCRLanguage.english: ["en"],
     OCRLanguage.hindi: ["en", "hi"],
     OCRLanguage.bengali: ["en", "bn"],
 }
 
-# Cache loaded readers so we don't reload the same language model on every request
+#Lazy loading of EasyOCR Reader
 _reader_cache = {}
 
 
